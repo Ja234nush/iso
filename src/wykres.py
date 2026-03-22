@@ -1,40 +1,60 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+import os
 
-# 1. Wczytanie oryginalnych współrzędnych
-# Twoje pliki CSV mają kolumny: X; Y; Koszt (bez nagłówków)
+# 1. Wczytanie oryginalnych danych - upewnij się że nazwa to Twój plik z danymi
 df = pd.read_csv('TSPA.csv', sep=';', header=None, names=['x', 'y', 'cost'])
-
-# 2. Wczytanie kolejności wierzchołków naszej najlepszej trasy
-with open('best_route.txt', 'r') as f:
-    route = [int(line.strip()) for line in f.readlines()]
-
-# Wyciągamy współrzędne wierzchołków w kolejności występowania w trasie
-route_x = [df.iloc[node_id]['x'] for node_id in route]
-route_y = [df.iloc[node_id]['y'] for node_id in route]
-
-# 3. Rysowanie wykresu
-plt.figure(figsize=(12, 8))
-
-# Najpierw rysujemy WSZYSTKIE 200 punktów jako szare, lekko przezroczyste kropki.
-# Wielkość kropki uzależniamy od zysku (im większy zysk, tym większa kropka)
 sizes = df['cost'] / df['cost'].max() * 200
-plt.scatter(df['x'], df['y'], c='lightgray', s=sizes, label='Ominięte wierzchołki')
 
-# Następnie rysujemy wybrane wierzchołki oraz czerwoną linię trasy
-plt.plot(route_x, route_y, c='red', linewidth=2, zorder=1, label='Trasa komiwojażera')
-plt.scatter(route_x, route_y, c='blue', s=[sizes[i] for i in route], zorder=2, label='Odwiedzone wierzchołki')
+# Słownik ze zaktualizowanymi ścieżkami do folderu lab1/wyniki/
+algorithms = {
+    'lab1/wyniki/route_random.txt': 'Rozwiązanie Losowe',
+    'lab1/wyniki/route_nn_no_profit.txt': 'Najbliższy Sąsiad (NNa - bez zysku)',
+    'lab1/wyniki/route_nn_profit.txt': 'Najbliższy Sąsiad (NN - z zyskiem)',
+    'lab1/wyniki/route_gc_no_profit.txt': 'Zachłanny Cykl (GCa - bez zysku)',
+    'lab1/wyniki/route_gc_profit.txt': 'Zachłanny Cykl (GC - z zyskiem)',
+    'lab1/wyniki/route_regret.txt': 'Algorytm 2-Żal (z zyskiem)',
+    'lab1/wyniki/route_weighted_regret.txt': 'Ważony Algorytm 2-Żal (z zyskiem)'
+}
 
-# Zaznaczamy wierzchołek startowy na zielono (gwiazdka)
-plt.scatter(route_x[0], route_y[0], c='green', marker='*', s=300, zorder=3, label='Start')
+# Pętla po wszystkich algorytmach
+for filepath, title in algorithms.items():
+    if not os.path.exists(filepath):
+        print(f"Brak pliku {filepath}, pomijam...")
+        continue
 
-# Estetyka wykresu
-plt.title('Najlepsza znaleziona trasa (Ważony 2-Żal)\nProblem komiwojażera z zyskami', fontsize=16)
-plt.xlabel('Współrzędna X', fontsize=12)
-plt.ylabel('Współrzędna Y', fontsize=12)
-plt.legend()
-plt.grid(True, linestyle='--', alpha=0.5)
+    # Wczytanie trasy
+    with open(filepath, 'r') as f:
+        route = [int(line.strip()) for line in f.readlines()]
 
-# Zapis do pliku i wyświetlenie
-plt.savefig('najlepsza_trasa.png', dpi=300, bbox_inches='tight')
-plt.show()
+    route_x = [df.iloc[node_id]['x'] for node_id in route]
+    route_y = [df.iloc[node_id]['y'] for node_id in route]
+
+    # Tworzenie wykresu
+    plt.figure(figsize=(12, 8))
+
+    # Rysowanie tła (ominięte punkty)
+    plt.scatter(df['x'], df['y'], c='lightgray', s=sizes, label='Ominięte wierzchołki')
+
+    # Rysowanie trasy
+    plt.plot(route_x, route_y, c='red', linewidth=2, zorder=1, label='Trasa')
+    plt.scatter(route_x, route_y, c='blue', s=[sizes[i] for i in route], zorder=2, label='Odwiedzone')
+    plt.scatter(route_x[0], route_y[0], c='green', marker='*', s=300, zorder=3, label='Start')
+
+    # Estetyka
+    plt.title(f'{title}\nProblem komiwojażera z zyskami', fontsize=16)
+    plt.xlabel('Współrzędna X')
+    plt.ylabel('Współrzędna Y')
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.5)
+
+    # Zapis obrazka do tego samego folderu (lab1/wyniki/)
+    safe_title = title.replace(' ', '_').replace('(', '').replace(')', '').replace('-', '_')
+    output_filename = f'lab1/wyniki/wykres_{safe_title}.png'
+
+    plt.savefig(output_filename, dpi=300, bbox_inches='tight')
+    print(f"✅ Zapisano wykres: {output_filename}")
+
+    plt.close()
+
+print("Gotowe! Wszystkie wykresy i pliki tras są w folderze lab1/wyniki/")

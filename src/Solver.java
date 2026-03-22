@@ -13,14 +13,14 @@ public class Solver {
     }
 
     // =========================================================
-    // 0. ALGORYTM LOSOWY (BEZ FAZY II)
+    // 0. ALGORYTM LOSOWY
     // =========================================================
     public Solution randomSolution() {
         Solution solution = new Solution(instance);
         int totalNodes = instance.getSize();
         java.util.Random random = new java.util.Random();
 
-        int numNodesToSelect = random.nextInt(totalNodes) + 1;
+        int numNodesToSelect = random.nextInt(totalNodes - 1) + 2;
         List<Integer> availableNodes = new ArrayList<>();
         for (int i = 0; i < totalNodes; i++) availableNodes.add(i);
 
@@ -32,7 +32,7 @@ public class Solver {
     }
 
     // =========================================================
-    // 1. NAJBLIŻSZY SĄSIAD (NN) + FAZA II
+    // 1. NAJBLIŻSZY SĄSIAD NN
     // =========================================================
     public Solution nearestNeighbor(int startNode, boolean useProfit) {
         Solution solution = new Solution(instance);
@@ -50,10 +50,10 @@ public class Solver {
 
             for (int candidate : unvisited) {
                 double distance = instance.getDistance(currentNode, candidate);
-                // Ocena = Zysk - Dystans (jeśli bez zysku, to po prostu -Dystans)
+                // Ocena = Zysk - Dystans
                 double score = useProfit ? (instance.getCost(candidate) - distance) : -distance;
 
-                if (score > bestScore) { // Szukamy największego wyniku!
+                if (score > bestScore) {
                     bestScore = score;
                     bestNextNode = candidate;
                 }
@@ -63,12 +63,12 @@ public class Solver {
             currentNode = bestNextNode;
         }
 
-        optimizePhaseTwo(solution); // Tylko tutaj i w GC
+        optimizePhaseTwo(solution);
         return solution;
     }
 
     // =========================================================
-    // 2. ZACHŁANNY CYKL (GREEDY CYCLE) + FAZA II
+    // 2. ZACHŁANNY CYKL (GC)
     // =========================================================
     public Solution greedyCycle(int startNode, boolean useProfit) {
         Solution solution = new Solution(instance);
@@ -81,7 +81,7 @@ public class Solver {
         int secondNode = -1;
         double bestDist = -Double.MAX_VALUE;
         for (int candidate : unvisited) {
-            double distScore = -instance.getDistance(startNode, candidate); // minus dystans
+            double distScore = -instance.getDistance(startNode, candidate);
             if (distScore > bestDist) {
                 bestDist = distScore;
                 secondNode = candidate;
@@ -116,7 +116,7 @@ public class Solver {
     }
 
     // =========================================================
-    // 3. ALGORYTM 2-ŻAL (2-REGRET) -- BEZ FAZY II!
+    // 3. ALGORYTM 2-ŻAL
     // =========================================================
     public Solution regretCycle(int startNode, boolean useProfit, boolean weighted) {
         Solution solution = new Solution(instance);
@@ -144,8 +144,8 @@ public class Solver {
             double bestAssociatedBenefit = -Double.MAX_VALUE;
 
             for (int candidate : unvisited) {
-                double b1 = -Double.MAX_VALUE; // Najlepszy benefit (największy)
-                double b2 = -Double.MAX_VALUE; // Drugi najlepszy benefit
+                double b1 = -Double.MAX_VALUE;
+                double b2 = -Double.MAX_VALUE;
                 int bestLocalIndex = -1;
 
                 for (int i = 0; i < solution.getPath().size(); i++) {
@@ -161,7 +161,7 @@ public class Solver {
                     }
                 }
 
-                // Regret to różnica między najlepszym a drugim najlepszym miejscem
+
                 double regret = b1 - b2;
                 // Jeśli ważony, bierzemy pod uwagę też to, jak dobra ogólnie jest ta wstawka
                 double score = weighted ? (regret + b1) : regret;
@@ -185,12 +185,11 @@ public class Solver {
             unvisited.remove(bestNodeToInsert);
         }
 
-        // ZGODNIE Z PROŚBĄ: BRAK FAZY II DLA ŻALU
         return solution;
     }
 
     // =========================================================
-    // FAZA II - OPTYMALIZACJA (Tylko dla NN i GC)
+    // FAZA II - OPTYMALIZACJA
     // =========================================================
     private void optimizePhaseTwo(Solution solution) {
         boolean improvement = true;
@@ -202,7 +201,7 @@ public class Solver {
 
             for (int i = 0; i < solution.getPath().size(); i++) {
                 int nodeId = solution.getPath().get(i);
-                double deltaDist = solution.getRemovalDeltaDistance(i); // Wartość ujemna (oszczędność trasy)
+                double deltaDist = solution.getRemovalDeltaDistance(i);
                 int profit = instance.getCost(nodeId);
 
                 // Zmiana funkcji celu przy usunięciu:
@@ -216,7 +215,6 @@ public class Solver {
                 }
             }
 
-            // Jeśli zmiana jest na plus, usuwamy miasto i powtarzamy
             if (bestIndexToRemove != -1 && bestObjectiveDelta > 0.0001) {
                 solution.removeNode(bestIndexToRemove);
                 improvement = true;
