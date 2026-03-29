@@ -3,3 +3,4 @@ out
 iso.iml
 __pycache__/
 *.pyc
+/out/
