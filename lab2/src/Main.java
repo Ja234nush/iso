@@ -9,7 +9,7 @@ import java.util.Random;
 
 public class Main {
     public static void main(String[] args) {
-        String filepath = "TSPA.csv"; // lub TSPB.csv
+        String filepath = "TSPB.csv"; // lub TSPB.csv
 
         try {
             Instance instance = new Instance(filepath);
@@ -130,8 +130,6 @@ public class Main {
                     maxAvgTimeNs = avgTimeNs;
                 }
             }
-
-            System.out.printf("⏳ Średni czas najwolniejszego LS to: %.2f ms. Odpalam Random Walk...\n", maxAvgTimeNs / 1_000_000.0);
 
             // =========================================================
             // ETAP 3: Testowanie Random Walk

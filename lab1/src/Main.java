@@ -141,7 +141,7 @@ public class Main {
     }
 
 
-     // Metoda do wypisywania statystyk ze wszystkich 200 przebiegów
+    // Metoda do wypisywania statystyk ze wszystkich 200 przebiegów
 
     private static void printStats(String algorithmName, double[] results) {
         DoubleSummaryStatistics stats = new DoubleSummaryStatistics();

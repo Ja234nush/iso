@@ -82,7 +82,7 @@ def rysuj_wykres(plik_csv, plik_txt, tytul="Wizualizacja Trasy"):
 
 if __name__ == "__main__":
     # 1. Konfiguracja pliku z instancją
-    plik_instancji = "../TSPA.csv"
+    plik_instancji = "../TSPB.csv"
     folder_wynikow = "wyniki"
 
     print(f"Szukam plików z trasami w folderze: {folder_wynikow}...")
@@ -102,6 +102,12 @@ if __name__ == "__main__":
             # (np. "route_ls_rand_steepest_swap.txt" -> "Ls Rand Steepest Swap")
             nazwa = os.path.basename(plik_trasy)
             czysty_tytul = nazwa.replace("route_", "").replace(".txt", "").replace("_", " ").strip().title()
+
+            # --- DODANE: ZAMIANA NAZW ---
+            czysty_tytul = czysty_tytul.replace("Swap", "Node Swap")
+            czysty_tytul = czysty_tytul.replace("2 Opt", "Edge Swap")
+            czysty_tytul = czysty_tytul.replace("2Opt", "Edge Swap")
+            # ----------------------------
 
             rysuj_wykres(plik_instancji, plik_trasy, f"Trasa: {czysty_tytul}")
 

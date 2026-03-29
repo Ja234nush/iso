@@ -63,22 +63,52 @@ public class Solution {
     // =================================================================
 
     // 1. WYMIANA ZEWNĘTRZNA (EXCHANGE)
-    public int getExchangeDelta(int routeIndex, int newNodeId) {
-        int oldNodeId = path.get(routeIndex);
+    // =================================================================
+    // RUCH: DODAJ WIERZCHOŁEK (ADD)
+    // =================================================================
+    public int getAddDelta(int newNodeId, int insertIndex) {
+        int prevNode = path.get((insertIndex - 1 + path.size()) % path.size());
+        int nextNode = path.get(insertIndex % path.size());
+
+        // O ile wydłuży się trasa?
+        int deltaDist = instance.getDistance(prevNode, newNodeId)
+                + instance.getDistance(newNodeId, nextNode)
+                - instance.getDistance(prevNode, nextNode);
+
+        int deltaProfit = instance.getCost(newNodeId);
+
+        // Zmiana funkcji celu: Zysk - Koszt dystansu
+        return deltaProfit - deltaDist;
+    }
+
+    public void applyAdd(int newNodeId, int insertIndex) {
+        path.add(insertIndex, newNodeId);
+        recalculateObjective();
+    }
+
+    // =================================================================
+    // RUCH: USUŃ WIERZCHOŁEK (REMOVE)
+    // =================================================================
+    public int getRemoveDelta(int routeIndex) {
+        if (path.size() <= 3) return Integer.MIN_VALUE; // Zabezpieczenie przed zniszczeniem cyklu
+
+        int nodeToRemove = path.get(routeIndex);
         int prevNode = path.get((routeIndex - 1 + path.size()) % path.size());
         int nextNode = path.get((routeIndex + 1) % path.size());
 
-        int oldDist = instance.getDistance(prevNode, oldNodeId) + instance.getDistance(oldNodeId, nextNode);
-        int newDist = instance.getDistance(prevNode, newNodeId) + instance.getDistance(newNodeId, nextNode);
+        // O ile skróci się trasa? (Stary dystans minus nowy bezpośredni skrót)
+        int oldDist = instance.getDistance(prevNode, nodeToRemove) + instance.getDistance(nodeToRemove, nextNode);
+        int newDist = instance.getDistance(prevNode, nextNode);
 
-        int deltaProfit = instance.getCost(newNodeId) - instance.getCost(oldNodeId);
-        int deltaDist = newDist - oldDist;
+        int distSaved = oldDist - newDist; // To jest na plus (oszczędność paliwa)
+        int profitLost = instance.getCost(nodeToRemove); // To jest na minus (tracimy zysk)
 
-        return deltaProfit - deltaDist; // > 0 to poprawa
+        // Zmiana funkcji celu: Zyskany dystans - Utracony profit
+        return distSaved - profitLost;
     }
 
-    public void applyExchange(int routeIndex, int newNodeId) {
-        path.set(routeIndex, newNodeId);
+    public void applyRemove(int routeIndex) {
+        path.remove(routeIndex);
         recalculateObjective();
     }
 
