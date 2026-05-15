@@ -1,4 +1,4 @@
-package lab3.src;
+package lab4.src;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -7,13 +7,13 @@ import java.io.IOException;
 
 public class Main {
     public static void main(String[] args) {
-        // Pamiętaj o zmianie ścieżki, jeśli pliki CSV trzymasz wyżej lub w innym miejscu
         String filepath = "TSPA.csv";
 
         try {
             Instance instance = new Instance(filepath);
             Solver solver = new Solver(instance);
-            int numRuns = 100;
+
+            int numRuns = 20;
             int numAlgorithms = 4;
 
             String[] algoNames = {
@@ -26,7 +26,6 @@ public class Main {
             int[][] scores = new int[numAlgorithms][numRuns];
             long[][] timesNs = new long[numAlgorithms][numRuns];
 
-            // Tablice do trzymania najlepszych i najgorszych rozwiązań dla każdego algorytmu
             Solution[] bestSolutions = new Solution[numAlgorithms];
             Solution[] worstSolutions = new Solution[numAlgorithms];
 
@@ -38,11 +37,11 @@ public class Main {
                 minScoresTracker[i] = Integer.MAX_VALUE;
             }
 
-            System.out.println("⏳ Trwa przeprowadzanie eksperymentow (100 iteracji)...");
+            System.out.println("⏳ Trwa przeprowadzanie algorytmow podstawowych (" + numRuns + " iteracji)...");
 
             for (int iter = 0; iter < numRuns; iter++) {
-                java.util.Random rand = new java.util.Random();
                 Solution startRandom = solver.randomSolution();
+                java.util.Random rand = new java.util.Random();
 
                 // 1. Heurystyka 2-Żal jako Baseline
                 long t0 = System.nanoTime();
@@ -76,28 +75,85 @@ public class Main {
                 if (scores[3][iter] > maxScores[3]) { maxScores[3] = scores[3][iter]; bestSolutions[3] = s3; }
                 if (scores[3][iter] < minScoresTracker[3]) { minScoresTracker[3] = scores[3][iter]; worstSolutions[3] = s3; }
 
-                if (iter % 10 == 0) System.out.print(".");
+                if (iter % 2 == 0) System.out.print(".");
             }
 
-            System.out.println("\n✅ Zakończono obliczenia!");
+            System.out.println("\n✅ Zakończono obliczenia podstawowe!");
+            printStats(algoNames, scores, timesNs);
 
-            // =========================================================
-            // ZAPIS WYNIKÓW DO PLIKÓW DLA SKRYPTU PYTHON
-            // =========================================================
-            File directory = new File("lab3/wyniki");
+            // =========================================================================
+            // EKSPERYMENTY DLA ZADANIA 4 (MSLS, ILS, LNS)
+            // =========================================================================
+            System.out.println("\n⏳ Rozpoczynam eksperymenty dla METAHEURYSTYK (Zadanie 4)...");
+
+            // Zmienne statystyk metaheurystyk
+            double mslsAvgObj = 0, ilsAvgObj = 0, lnsAvgObj = 0;
+            int mslsMaxObj = Integer.MIN_VALUE, ilsMaxObj = Integer.MIN_VALUE, lnsMaxObj = Integer.MIN_VALUE;
+            long totalMslsTime = 0;
+            long totalIlsPerturbations = 0, totalLnsPerturbations = 0;
+
+            Solution bestMslsSolution = null;
+            Solution bestIlsSolution = null;
+            Solution bestLnsSolution = null;
+
+            // 1. Uruchamiamy MSLS i liczymy czas do warunku stopu
+            System.out.println("   [MSLS] Trwa liczenie...");
+            for(int i = 0; i < numRuns; i++) {
+                long startMs = System.currentTimeMillis();
+                Solution sol = solver.solveMSLS();
+                totalMslsTime += (System.currentTimeMillis() - startMs);
+
+                int obj = sol.getObjectiveValue();
+                mslsAvgObj += obj;
+                if (obj > mslsMaxObj) { mslsMaxObj = obj; bestMslsSolution = sol; }
+            }
+            long mslsAvgTimeLimitMs = totalMslsTime / numRuns;
+
+            // 2. Uruchamiamy ILS oparty na limicie czasowym
+            System.out.println("   [ILS] Trwa liczenie (Limit: " + mslsAvgTimeLimitMs + " ms)...");
+            for(int i = 0; i < numRuns; i++) {
+                Solution sol = solver.solveILS(mslsAvgTimeLimitMs);
+                totalIlsPerturbations += solver.ilsPerturbationsCount;
+
+                int obj = sol.getObjectiveValue();
+                ilsAvgObj += obj;
+                if (obj > ilsMaxObj) { ilsMaxObj = obj; bestIlsSolution = sol; }
+            }
+
+            // 3. Uruchamiamy LNS oparty na limicie czasowym
+            System.out.println("   [LNS] Trwa liczenie (Limit: " + mslsAvgTimeLimitMs + " ms)...");
+            for(int i = 0; i < numRuns; i++) {
+                Solution sol = solver.solveLNS(mslsAvgTimeLimitMs);
+                totalLnsPerturbations += solver.lnsPerturbationsCount;
+
+                int obj = sol.getObjectiveValue();
+                lnsAvgObj += obj;
+                if (obj > lnsMaxObj) { lnsMaxObj = obj; bestLnsSolution = sol; }
+            }
+
+            System.out.println("\n====================== WYNIKI METAHEURYSTYK (Zadanie 4) ======================");
+            System.out.printf("%-20s | Srednia: %7.2f | Max: %5d | Śr. Czas/Limit: %d ms\n", "MSLS", mslsAvgObj/numRuns, mslsMaxObj, mslsAvgTimeLimitMs);
+            System.out.printf("%-20s | Srednia: %7.2f | Max: %5d | Śr. perturbacji: %d\n", "ILS", ilsAvgObj/numRuns, ilsMaxObj, totalIlsPerturbations/numRuns);
+            System.out.printf("%-20s | Srednia: %7.2f | Max: %5d | Śr. iteracji D/R: %d\n", "LNS", lnsAvgObj/numRuns, lnsMaxObj, totalLnsPerturbations/numRuns);
+
+            // =========================================================================
+            // ZAPIS WYNIKÓW
+            // =========================================================================
+            File directory = new File("lab4/wyniki");
             if (!directory.exists()) directory.mkdirs();
 
             for (int i = 0; i < numAlgorithms; i++) {
-                // Tworzymy bezpieczną nazwę pliku (usuwamy spacje, zmieniamy na małe litery)
                 String safeName = algoNames[i].replaceAll("[\\s,\\(\\)-]+", "_").toLowerCase();
-
-                // Zapisujemy zarówno najlepsze, jak i najgorsze rozwiązania
-                saveRouteToFile(bestSolutions[i], "lab3/wyniki/route_najlepsza_" + safeName + ".txt");
-                saveRouteToFile(worstSolutions[i], "lab3/wyniki/route_najgorsza_" + safeName + ".txt");
+                saveRouteToFile(bestSolutions[i], "lab4/wyniki/route_najlepsza_" + safeName + ".txt");
+                saveRouteToFile(worstSolutions[i], "lab4/wyniki/route_najgorsza_" + safeName + ".txt");
             }
-            System.out.println("✅ Zapisano najlepsze ORAZ najgorsze trasy w folderze 'lab3/wyniki/'.");
 
-            printStats(algoNames, scores, timesNs);
+            // Zapis tras dla metaheurystyk
+            saveRouteToFile(bestMslsSolution, "lab4/wyniki/route_najlepsza_msls.txt");
+            saveRouteToFile(bestIlsSolution, "lab4/wyniki/route_najlepsza_ils.txt");
+            saveRouteToFile(bestLnsSolution, "lab4/wyniki/route_najlepsza_lns.txt");
+
+            System.out.println("\n✅ Zapisano pomyślnie wszystkie trasy w folderze 'lab4/wyniki/'.");
 
         } catch (IOException e) {
             System.err.println("Blad odczytu pliku: " + e.getMessage());
@@ -111,7 +167,7 @@ public class Main {
                 out.println(nodeId);
             }
             if (!solution.getPath().isEmpty()) {
-                out.println(solution.getPath().get(0)); // Zamknięcie cyklu dla ładnego wykresu
+                out.println(solution.getPath().get(0));
             }
         } catch (FileNotFoundException e) {
             System.err.println("Błąd zapisu pliku: " + e.getMessage());

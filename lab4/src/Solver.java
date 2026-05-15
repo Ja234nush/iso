@@ -1,25 +1,30 @@
-package lab3.src;
+package lab4.src;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 
 public class Solver {
     private final Instance instance;
+    private final Random random = new Random();
+
+    // Liczniki do analizy eksperymentu
+    public int ilsPerturbationsCount = 0;
+    public int lnsPerturbationsCount = 0;
 
     public Solver(Instance instance) {
         this.instance = instance;
     }
 
     // =========================================================================
-    // METODY POMOCNICZE (z Lab 2)
+    // METODY POMOCNICZE (z Lab 2 i 3)
     // =========================================================================
     public Solution randomSolution() {
         Solution solution = new Solution(instance);
         int totalNodes = instance.getSize();
-        java.util.Random random = new java.util.Random();
-        int numNodesToSelect = random.nextInt(totalNodes - 2) + 3;
+        int numNodesToSelect = (int)Math.ceil(totalNodes / 2.0);
         List<Integer> availableNodes = new ArrayList<>();
         for (int i = 0; i < totalNodes; i++) availableNodes.add(i);
         java.util.Collections.shuffle(availableNodes, random);
@@ -42,7 +47,8 @@ public class Solver {
         solution.addNodeLast(secondNode);
         unvisited.remove(Integer.valueOf(secondNode));
 
-        while (!unvisited.isEmpty()) {
+        int targetSize = (int)Math.ceil(instance.getSize() / 2.0);
+        while (solution.getPath().size() < targetSize && !unvisited.isEmpty()) {
             int bestNodeToInsert = -1, bestInsertionIndex = -1, maxScore = Integer.MIN_VALUE;
             for (int candidate : unvisited) {
                 int b1 = Integer.MIN_VALUE, b2 = Integer.MIN_VALUE, bestLocalIndex = -1;
@@ -62,7 +68,7 @@ public class Solver {
     }
 
     // =========================================================================
-    // 0. BAZOWY LOCAL SEARCH (Steepest, referencyjny z Lab 2)
+    // BAZOWY LOCAL SEARCH (Steepest, referencyjny z Lab 2)
     // =========================================================================
     public Solution localSearchBaseSteepest(Solution startSolution) {
         Solution currentSolution = new Solution(startSolution);
@@ -107,7 +113,7 @@ public class Solver {
     }
 
     // =========================================================================
-    // 1. LOCAL SEARCH - RUCHY KANDYDACKIE (PRAWDZIWA OPTYMALIZACJA)
+    // LOCAL SEARCH - RUCHY KANDYDACKIE
     // =========================================================================
     public Solution localSearchCandidateMoves(Solution startSolution) {
         Solution currentSolution = new Solution(startSolution);
@@ -118,26 +124,19 @@ public class Solver {
             int bestType = -1, bestI = -1, bestJ = -1, bestDelta = 0;
             List<Integer> path = currentSolution.getPath();
 
-
             int[] pos = new int[instance.getSize()];
             java.util.Arrays.fill(pos, -1);
             for (int i = 0; i < path.size(); i++) {
                 pos[path.get(i)] = i;
             }
 
-            // -------------------------------------------------------------
-            // RUCH 2-OPT (Kandydackie)
-            // Ruch 2-opt usuwa krawędzie (i-1, i) oraz (j, j+1)
-            // a wstawia nowe krawędzie: (i-1, j) oraz (i, j+1).
-            // -------------------------------------------------------------
             for (int i = 0; i < path.size(); i++) {
                 int nodeI = path.get(i);
                 int prevI = path.get((i - 1 + path.size()) % path.size());
 
-
                 for (int neighborJ : instance.getNearestNeighbors(prevI)) {
                     int j = pos[neighborJ];
-                    if (j != -1) { // Sąsiad jest na trasie
+                    if (j != -1) {
                         int minIdx = Math.min(i, j);
                         int maxIdx = Math.max(i, j);
                         int delta = currentSolution.getTwoOptDelta(minIdx, maxIdx);
@@ -157,21 +156,14 @@ public class Solver {
                 }
             }
 
-            // -------------------------------------------------------------
-            // RUCH ADD (Dodawanie wierzchołków - Kandydackie)
-            // Dodajemy węzeł `u` obok jego sąsiadów, którzy są na trasie
-            // -------------------------------------------------------------
             for (int u = 0; u < instance.getSize(); u++) {
-                if (pos[u] == -1) { // Jeżeli 'u' nie ma na trasie
-                    // Sprawdzamy wstawienie go tylko w pobliżu jego 10 najbliższych sąsiadów
+                if (pos[u] == -1) {
                     for (int neighbor : instance.getNearestNeighbors(u)) {
                         int neighborPos = pos[neighbor];
                         if (neighborPos != -1) {
-                            // Opcja 1: Wstawienie bezpośrednio PRZED sąsiadem
                             int delta1 = currentSolution.getAddDelta(u, neighborPos);
                             if (delta1 > bestDelta) { bestDelta = delta1; bestType = 3; bestI = u; bestJ = neighborPos; }
 
-                            // Opcja 2: Wstawienie bezpośrednio ZA sąsiadem
                             int insertAfter = neighborPos + 1;
                             int delta2 = currentSolution.getAddDelta(u, insertAfter);
                             if (delta2 > bestDelta) { bestDelta = delta2; bestType = 3; bestI = u; bestJ = insertAfter; }
@@ -180,10 +172,6 @@ public class Solver {
                 }
             }
 
-            // -------------------------------------------------------------
-            // RUCH REMOVE (Wszystkie)
-            // (Tutaj trasa się skraca, więc przeglądamy wszystkie możliwości)
-            // -------------------------------------------------------------
             if (path.size() > 3) {
                 for (int i = 0; i < path.size(); i++) {
                     int delta = currentSolution.getRemoveDelta(i);
@@ -191,7 +179,6 @@ public class Solver {
                 }
             }
 
-            // ZASTOSOWANIE NAJLEPSZEGO RUCHU
             if (bestDelta > 0) {
                 if (bestType == 2) currentSolution.applyTwoOpt(bestI, bestJ);
                 else if (bestType == 3) currentSolution.applyAdd(bestI, bestJ);
@@ -203,42 +190,31 @@ public class Solver {
     }
 
     // =========================================================================
-    // 2. LOCAL SEARCH - LISTA RUCHÓW (LM) - METODA ALTERNATYWNA
+    // LOCAL SEARCH - LISTA RUCHÓW (LM)
     // =========================================================================
     public Solution localSearchWithLM(Solution startSolution) {
         Solution currentSolution = new Solution(startSolution);
         List<Move> LM = new ArrayList<>();
 
-        // 1. Oceń wszystkie ruchy aplikowalne do x i dodaj ruchy przynoszące poprawę do LM
         evaluateAllMoves(currentSolution, LM);
 
-        // 2. Powtarzaj dopóki LM nie jest pusta [cite: 81, 89]
         while (!LM.isEmpty()) {
             boolean moveFound = false;
-
-            // Dla wszystkich ruchów m w LM zaczynając od najlepszego [cite: 82]
             Iterator<Move> iterator = LM.iterator();
             while (iterator.hasNext()) {
                 Move m = iterator.next();
-
-                // Sprawdź czy m jest aplikowalny (w naszym przypadku: czy nadal przynosi dodatnią deltę)
                 int currentDelta = checkApplicabilityDelta(currentSolution, m);
 
                 if (currentDelta <= 0) {
-                    // Jeżeli nie, to usuń m z LM
                     iterator.remove();
                 } else {
-                    // Jeżeli ruch m został znaleziony, zaakceptuj go [cite: 84, 85]
                     applyMove(currentSolution, m);
                     moveFound = true;
-                    // Przerywamy wewnętrzną pętlę, by znowu zacząć przeglądanie LM od góry (najlepszych)
                     break;
                 }
             }
 
-            // W przeciwnym wypadku (gdy przejrzymy całe LM i nic nie ma) [cite: 86]
             if (!moveFound) {
-                // Oceń wszystkie ruchy aplikowalne do x i dodaj ruchy przynoszące poprawę do LM [cite: 87, 88]
                 LM.clear();
                 evaluateAllMoves(currentSolution, LM);
             }
@@ -246,12 +222,9 @@ public class Solver {
         return currentSolution;
     }
 
-    // --- Metody pomocnicze dla LM ---
-
     private void evaluateAllMoves(Solution currentSolution, List<Move> LM) {
         List<Integer> path = currentSolution.getPath();
 
-        // 2-Opt
         for (int i = 0; i < path.size() - 1; i++) {
             for (int j = i + 1; j < path.size(); j++) {
                 int delta = currentSolution.getTwoOptDelta(i, j);
@@ -259,7 +232,6 @@ public class Solver {
             }
         }
 
-        // Add
         for (int u = 0; u < instance.getSize(); u++) {
             if (!path.contains(u)) {
                 for (int i = 0; i < path.size(); i++) {
@@ -269,7 +241,6 @@ public class Solver {
             }
         }
 
-        // Remove
         if (path.size() > 3) {
             for (int i = 0; i < path.size(); i++) {
                 int delta = currentSolution.getRemoveDelta(i);
@@ -277,7 +248,6 @@ public class Solver {
             }
         }
 
-        // Zainicjuj LM uporządkowaną od najlepszego do najgorszego [cite: 79]
         Collections.sort(LM);
     }
 
@@ -286,9 +256,7 @@ public class Solver {
         if (m.type == 2) {
             int i = path.indexOf(m.node1);
             int j = path.indexOf(m.node2);
-            // Upewniamy się, że oba węzły są w trasie
             if (i != -1 && j != -1) {
-                // Wymuszamy, by i < j (2-opt zależy od kierunku)
                 if (i > j) { int temp = i; i = j; j = temp; }
                 return s.getTwoOptDelta(i, j);
             }
@@ -300,7 +268,7 @@ public class Solver {
             int routeIdx = path.indexOf(m.node1);
             if (routeIdx != -1 && path.size() > 3) return s.getRemoveDelta(routeIdx);
         }
-        return -1; // Nieaplikowalne (zwróci ujemną wartość by wyrzucić ruch z LM)
+        return -1;
     }
 
     private void applyMove(Solution s, Move m) {
@@ -316,6 +284,164 @@ public class Solver {
         } else if (m.type == 4) {
             int routeIdx = path.indexOf(m.node1);
             s.applyRemove(routeIdx);
+        }
+    }
+
+    // =========================================================================
+    // ZADANIE 4: METAHEURYSTYKI
+    // =========================================================================
+
+    public Solution solveMSLS() {
+        Solution bestOverall = null;
+        int iterations = 200;
+
+        for (int i = 0; i < iterations; i++) {
+            Solution x = randomSolution();
+            Solution localOptimum = localSearchCandidateMoves(x);
+
+            if (bestOverall == null || localOptimum.getObjectiveValue() > bestOverall.getObjectiveValue()) {
+                bestOverall = localOptimum;
+            }
+        }
+        return bestOverall;
+    }
+
+    public Solution solveILS(long timeLimitMs) {
+        long startTime = System.currentTimeMillis();
+        ilsPerturbationsCount = 0;
+
+        Solution x = randomSolution();
+        x = localSearchCandidateMoves(x);
+
+        while ((System.currentTimeMillis() - startTime) < timeLimitMs) {
+            Solution y = new Solution(x);
+
+            // SILNIEJSZA PERTURBACJA: Zmieniono z 3 wymian na 10
+            perturbILS(y);
+            ilsPerturbationsCount++;
+
+            y = localSearchCandidateMoves(y);
+
+            if (y.getObjectiveValue() > x.getObjectiveValue()) {
+                x = y;
+            }
+        }
+        return x;
+    }
+
+    private void perturbILS(Solution s) {
+        List<Integer> path = s.getPath();
+        if (path.size() < 4) return;
+
+        // Zmieniono na 10 uderzeń szumu (swapów)
+        for (int i = 0; i < 10; i++) {
+            int idx1 = random.nextInt(path.size());
+            int idx2 = random.nextInt(path.size());
+            Collections.swap(path, idx1, idx2);
+        }
+        s.recalculateObjective();
+    }
+
+    public Solution solveLNS(long timeLimitMs) {
+        long startTime = System.currentTimeMillis();
+        lnsPerturbationsCount = 0;
+
+        Solution x = randomSolution();
+        x = localSearchCandidateMoves(x);
+
+        while ((System.currentTimeMillis() - startTime) < timeLimitMs) {
+            Solution y = new Solution(x);
+
+            // RÓŻNORODNOŚĆ W DESTROY:
+            // Przekazujemy lnsPerturbationsCount, aby sterować logiką (heurystyka vs losowość)
+            destroyLNS(y, 0.3, lnsPerturbationsCount);
+
+            repairLNS(y);
+            lnsPerturbationsCount++;
+
+
+
+            if (y.getObjectiveValue() > x.getObjectiveValue()) {
+                x = y;
+            }
+        }
+        return x;
+    }
+
+    private void destroyLNS(Solution s, double percentage, int iterationCount) {
+        List<Integer> path = s.getPath();
+        int toRemove = (int) (path.size() * percentage);
+
+        // Raz na 5 wywołań (gdy reszta z dzielenia przez 5 równa się 0) używamy metody opartej na usuwaniu najgorszych.
+        // W pozostałych 80% przypadków usuwamy wierzchołki w sposób całkowicie losowy.
+        boolean removeWorst = (iterationCount % 5 == 0);
+
+        for (int k = 0; k < toRemove; k++) {
+            if (path.size() < 3) break;
+
+            int indexToRemove = -1;
+
+            if (removeWorst) {
+                // Strategia deterministyczna: Usuń najgorszy wierzchołek
+                double worstScore = Double.MAX_VALUE;
+                for (int i = 0; i < path.size(); i++) {
+                    int curr = path.get(i);
+                    int prev = path.get((i - 1 + path.size()) % path.size());
+                    int next = path.get((i + 1) % path.size());
+
+                    int currentObjective = instance.getCost(curr) - (instance.getDistance(prev, curr) + instance.getDistance(curr, next));
+
+                    if (currentObjective < worstScore) {
+                        worstScore = currentObjective;
+                        indexToRemove = i;
+                    }
+                }
+            } else {
+                // Strategia losowa: Zwiększa eksplorację (Exploration) zapobiegając stagnacji
+                indexToRemove = random.nextInt(path.size());
+            }
+
+            s.applyRemove(indexToRemove);
+        }
+    }
+
+    private void repairLNS(Solution solution) {
+        int n = instance.getSize();
+        int targetSize = (int)Math.ceil(n / 2.0);
+
+        List<Integer> unvisited = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            if (!solution.getPath().contains(i)) {
+                unvisited.add(i);
+            }
+        }
+
+        while (solution.getPath().size() < targetSize && !unvisited.isEmpty()) {
+            int bestNodeToInsert = -1, bestInsertionIndex = -1, maxScore = Integer.MIN_VALUE;
+
+            for (int candidate : unvisited) {
+                int b1 = Integer.MIN_VALUE, b2 = Integer.MIN_VALUE, bestLocalIndex = -1;
+                for (int i = 0; i < solution.getPath().size(); i++) {
+                    int deltaDist = solution.getInsertionDeltaDistance(candidate, i);
+                    int benefit = instance.getCost(candidate) - deltaDist;
+
+                    if (benefit > b1) {
+                        b2 = b1;
+                        b1 = benefit;
+                        bestLocalIndex = i;
+                    } else if (benefit > b2) {
+                        b2 = benefit;
+                    }
+                }
+                int score = b1 - b2;
+                if (score > maxScore) {
+                    maxScore = score;
+                    bestNodeToInsert = candidate;
+                    bestInsertionIndex = bestLocalIndex;
+                }
+            }
+            solution.insertNode(bestNodeToInsert, bestInsertionIndex);
+            unvisited.remove(Integer.valueOf(bestNodeToInsert));
         }
     }
 }
